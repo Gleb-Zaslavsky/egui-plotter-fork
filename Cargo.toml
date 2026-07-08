@@ -1,0 +1,39 @@
+[package]
+name = "egui-plotter-fork"
+version = "0.35.0"
+edition = "2024"
+license = "MIT"
+readme = "README.md"
+keywords = ["plotters", "plotter", "egui", "backend"]
+categories = ["graphics", "gui", "mathematics", "rendering", "visualization"]
+description = "a fork of egui-plotters for egui 0.35+"
+
+exclude = ["images"]
+
+[features]
+timechart = ["dep:instant"]
+
+[dependencies]
+egui = "0.35"
+plotters-backend = "0.3"
+plotters = "0.3"
+earcutr = "0.5.0"
+instant = { version = "0.1", features = ["wasm-bindgen"], optional = true }
+
+[dev-dependencies]
+eframe = "0.35"
+# Hacky way to enable features during testing
+egui-plotter-fork = { path = ".", features = ["timechart"] }
+egui_extras = { version = "0.35", features = ["all_loaders"] }
+image = { version = "0.25", features = ["png"] } # Add the types you want support for
+
+[package.metadata.docs.rs]
+features = ["timechart"]
+
+[[example]]
+name = "spiral"
+required-features = ["timechart"]
+
+[[example]]
+name = "timechart"
+required-features = ["timechart"]

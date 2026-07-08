@@ -6,7 +6,7 @@ license = "MIT"
 readme = "README.md"
 keywords = ["plotters", "plotter", "egui", "backend"]
 categories = ["graphics", "gui", "mathematics", "rendering", "visualization"]
-description = "a fork of egui-plotters for egui 0.35+"
+description = "a fork of egui-plotters for egui 0.35+ compatibility"
 
 exclude = ["images"]
 

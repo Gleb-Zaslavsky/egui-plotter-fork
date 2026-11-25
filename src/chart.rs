@@ -1,6 +1,6 @@
 //! Structs used to simplify the process of making interactive charts
 
-use egui::{PointerState, Ui};
+use egui::{PointerState, Rect, Ui};
 use plotters::{
     coord::Shift,
     prelude::{DrawingArea, IntoDrawingArea},
@@ -97,6 +97,7 @@ pub struct MouseConfig {
     zoom_scale: f32,
     drag_bind: MouseButton,
     rotate_bind: MouseButton,
+    drag_exclusions: [Option<Rect>; 4],
 }
 
 impl Default for MouseConfig {
@@ -110,6 +111,7 @@ impl Default for MouseConfig {
             zoom_scale: DEFAULT_SCROLL_SCALE,
             drag_bind: MouseButton::Middle,
             rotate_bind: MouseButton::Primary,
+            drag_exclusions: [None; 4],
         }
     }
 }
@@ -127,7 +129,23 @@ impl MouseConfig {
             zoom_scale: DEFAULT_SCROLL_SCALE,
             drag_bind: MouseButton::Middle,
             rotate_bind: MouseButton::Primary,
+            drag_exclusions: [None; 4],
         }
+    }
+
+    /// Exclude a screen-space region from chart dragging while preserving other mouse input.
+    pub fn exclude_drag_region(mut self, rect: Rect) -> Self {
+        if let Some(slot) = self.drag_exclusions.iter_mut().find(|slot| slot.is_none()) {
+            *slot = Some(rect);
+        }
+        self
+    }
+
+    fn drag_excluded_at(&self, position: egui::Pos2) -> bool {
+        self.drag_exclusions
+            .iter()
+            .flatten()
+            .any(|rect| rect.contains(position))
     }
 
     #[inline]
@@ -327,6 +345,11 @@ impl<Data> Chart<Data> {
 
     /// Call the callback and draw the chart to a UI element.
     pub fn draw(&mut self, ui: &Ui) {
+        self.draw_in_rect(ui, ui.max_rect());
+    }
+
+    /// Call the callback and draw the chart into a specified UI rectangle.
+    pub fn draw_in_rect(&mut self, ui: &Ui, bounds: Rect) {
         let transform = &mut self.transform;
 
         // First, get mouse data
@@ -344,7 +367,10 @@ impl<Data> Chart<Data> {
             }
 
             // Adjust the x/y if the middle button is down and dragging is enabled
-            if self.mouse.drag && self.mouse.drag_bind.is_down(pointer) {
+            let drag_excluded = pointer
+                .interact_pos()
+                .is_some_and(|position| self.mouse.drag_excluded_at(position));
+            if self.mouse.drag && !drag_excluded && self.mouse.drag_bind.is_down(pointer) {
                 let x_delta = delta.x;
                 let y_delta = delta.y;
 
@@ -361,7 +387,7 @@ impl<Data> Chart<Data> {
             }
         });
 
-        let mut area = EguiBackend::new(ui)
+        let mut area = EguiBackend::new_in_rect(ui, bounds)
             .offset((transform.x, transform.y))
             .scale(transform.scale as f32)
             .into_drawing_area();
@@ -371,5 +397,20 @@ impl<Data> Chart<Data> {
         }
 
         area.present().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mouse_drag_exclusion_only_blocks_the_registered_region() {
+        let config = MouseConfig::enabled().exclude_drag_region(Rect::from_min_max(
+            egui::pos2(10.0, 20.0),
+            egui::pos2(40.0, 60.0),
+        ));
+        assert!(config.drag_excluded_at(egui::pos2(25.0, 35.0)));
+        assert!(!config.drag_excluded_at(egui::pos2(50.0, 35.0)));
     }
 }

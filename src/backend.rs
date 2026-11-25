@@ -260,7 +260,11 @@ impl<'a> EguiBackend<'a> {
     #[inline]
     /// Create a backend given a reference to a Ui.
     pub fn new(ui: &'a Ui) -> Self {
-        let bounds = ui.max_rect();
+        Self::new_in_rect(ui, ui.max_rect())
+    }
+
+    /// Create a backend clipped and sized to an explicit UI rectangle.
+    pub fn new_in_rect(ui: &'a Ui, bounds: Rect) -> Self {
 
         Self {
             ui,
@@ -329,8 +333,7 @@ impl<'a> DrawingBackend for EguiBackend<'a> {
     type ErrorType = std::io::Error;
 
     fn get_size(&self) -> (u32, u32) {
-        let bounds = self.ui.max_rect();
-        (bounds.width() as u32, bounds.height() as u32)
+        (self.bounds.width() as u32, self.bounds.height() as u32)
     }
 
     fn ensure_prepared(&mut self) -> Result<(), DrawingErrorKind<Self::ErrorType>> {
@@ -510,8 +513,7 @@ impl<'a> DrawingBackend for EguiBackend<'a> {
 
         let Pos { h_pos, v_pos } = style.anchor();
 
-        // !TODO! Find a slightly more eligant rotation function.
-        let mut anchor = Align2([
+        let anchor = Align2([
             match h_pos {
                 HPos::Left => Align::LEFT,
                 HPos::Right => Align::RIGHT,
@@ -523,29 +525,12 @@ impl<'a> DrawingBackend for EguiBackend<'a> {
                 VPos::Bottom => Align::BOTTOM,
             },
         ]);
-        fn rotate(anchor: &mut Align2) {
-            *anchor = match anchor {
-                &mut Align2::LEFT_TOP => Align2::RIGHT_TOP,
-                &mut Align2::RIGHT_TOP => Align2::RIGHT_BOTTOM,
-                &mut Align2::RIGHT_BOTTOM => Align2::LEFT_BOTTOM,
-                &mut Align2::LEFT_BOTTOM => Align2::LEFT_TOP,
-                &mut Align2::LEFT_CENTER => Align2::CENTER_TOP,
-                &mut Align2::CENTER_TOP => Align2::RIGHT_CENTER,
-                &mut Align2::RIGHT_CENTER => Align2::CENTER_BOTTOM,
-                &mut Align2::CENTER_BOTTOM => Align2::LEFT_CENTER,
-                &mut Align2::CENTER_CENTER => Align2::CENTER_CENTER,
-            }
-        }
-        for _ in 0..rotations {
-            rotate(&mut anchor)
-        }
         let galley = self.painter.layout_no_wrap(text.to_string(), font, color);
         let rect = anchor.anchor_rect(Rect::from_min_size(pos.into(), galley.size()));
         if !galley.is_empty() {
-            self.painter.add(TextShape {
-                angle,
-                ..TextShape::new(rect.min, galley, Color32::PLACEHOLDER)
-            });
+            let shape = TextShape::new(rect.min, galley, Color32::PLACEHOLDER)
+                .with_angle_and_anchor(angle, anchor);
+            self.painter.add(shape);
         }
 
         Ok(())
